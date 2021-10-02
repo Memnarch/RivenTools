@@ -1,20 +1,24 @@
 import subprocess
 import sys
+import warnings
+from torch.serialization import UserWarning
 import vapoursynth as vs
 from vapoursynth import core
 from vsbasicvsrpp import BasicVSRPP
 
 CFFMPEG = "E:\\CustomMyst\\ffmpeg\\bin\\ffmpeg.exe";
+CTimings = "Timings.txt";
+CAudio = "Audio.aiff";
 
 def extractAudio(videoFile, audioFile):
-	subprocess.run([CFFMPEG, "-i", videoFile, "-vn", "-acodec", "copy", audioFile]);
-	#subprocess.run([CFFMPEG, "-i", videoFile, "-vn", "-acodec", "pcm_s16le", "-f", "s16le", audioFile]);
+	subprocess.run([CFFMPEG, "-y", "-i", videoFile, "-vn", "-acodec", "copy", audioFile]);
 	
 def mergeAudio(videoIn, audioIn, videoOut):
-	subprocess.run([CFFMPEG, "-i", videoIn, "-i", audioIn, "-c:v", "libx264", "-video_track_timescale", "30", "-c:a", "copy", videoOut])
+#"-vsync", "2", "-r", "14.639",
+	subprocess.run([CFFMPEG, "-y", "-i", videoIn, "-i", audioIn, "-c:v", "libx264", "-crf", "17", "-c:a", "copy", videoOut])
 
 def openVideo(fileName):
-	return core.ffms2.Source(source=fileName, format=2000015) #pfRGBS
+	return core.ffms2.Source(source=fileName, format=2000015, timecodes=CTimings) #pfRGBS
 	
 def toYUV(clip):
 	result = core.fmtc.bitdepth(clip=clip, bits=16, flt=0)
@@ -45,18 +49,28 @@ def deblock(clip, batchSize = 30):
 	return BasicVSRPP(clip=clip, model=5, interval=batchSize, fp16=True)
 	
 def upscale(clip):
-	return BasicVSRPP(clip=ret, model=1, interval=30, fp16=True)
+	return BasicVSRPP(clip=clip, model=1, interval=30, fp16=True)
 	
 def processVideo(inputFile, outputFile):
-	ret = openVideo(original)
+	ret = openVideo(inputFile)
+	ret = deblock(ret, 90)
 	ret = core.resize.Bicubic(ret, ret.width*2, ret.height*2)
 	ret = deblock(ret);
 	ret = core.resize.Bicubic(ret, ret.width/2, ret.height/2)
-	ret = deblock(ret)
+	ret = deblock(ret, 90)
 	ret = upscale(ret)
 	ret = toYUV(ret)
-	saveVideo(ret, "D:\\ScaledVideos\\Test7.mov")
+	if ret.fps.denominator > 1:
+		targetFPS = ret.fps.numerator / ret.fps.denominator * 2;
+		print("VFR clip detected. Converting to " + str(targetFPS))
+		ret = core.vfrtocfr.VFRToCFR(ret, CTimings, 30, 1)
+	saveVideo(ret, outputFile)
 
 original = "E:\\CustomMyst\\Sources\\t_data-1-mhk\\55_tmgtm2jg.mov"
-#extractAudio(original, "Audio.aiff")
-mergeAudio("D:\\ScaledVideos\\Test7.y4m", "Audio.aif", "Foo.mov")
+intro = "E:\\CustomMyst\\Sources\\t_data-1-mhk\\159_tintro.mov"
+temp = "G:\\ScaledVideos\\temp2.y4m"
+
+warnings.filterwarnings("ignore", category=UserWarning)
+processVideo(intro, temp)
+extractAudio(intro, CAudio)
+mergeAudio(temp, CAudio, "G:\\Intro2.mov")
