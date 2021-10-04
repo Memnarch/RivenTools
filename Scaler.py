@@ -1,7 +1,10 @@
 import subprocess
 import sys
 import warnings
-from torch.serialization import UserWarning
+from datetime import timedelta
+import time
+from vsrife import RIFE
+from vsdpir import DPIR
 import vapoursynth as vs
 from vapoursynth import core
 from vsbasicvsrpp import BasicVSRPP
@@ -10,12 +13,16 @@ CFFMPEG = "E:\\CustomMyst\\ffmpeg\\bin\\ffmpeg.exe";
 CTimings = "Timings.txt";
 CAudio = "Audio.aiff";
 
+def GetLogFile():
+	return open("ffmpeg.log", "w")
+
 def extractAudio(videoFile, audioFile):
-	subprocess.run([CFFMPEG, "-y", "-i", videoFile, "-vn", "-acodec", "copy", audioFile]);
+	print("extracting audio...")
+	subprocess.run([CFFMPEG, "-y", "-i", videoFile, "-vn", "-acodec", "copy", audioFile], stderr = GetLogFile());
 	
 def mergeAudio(videoIn, audioIn, videoOut):
-#"-vsync", "2", "-r", "14.639",
-	subprocess.run([CFFMPEG, "-y", "-i", videoIn, "-i", audioIn, "-c:v", "libx264", "-crf", "17", "-c:a", "copy", videoOut])
+	print("merging audio and compressing...")
+	subprocess.run([CFFMPEG, "-y", "-i", videoIn, "-i", audioIn, "-c:v", "libx264", "-crf", "17", "-c:a", "copy", videoOut], stderr = GetLogFile())
 
 def openVideo(fileName):
 	return core.ffms2.Source(source=fileName, format=2000015, timecodes=CTimings) #pfRGBS
@@ -44,33 +51,53 @@ def saveVideo(clip, fileName):
 	clip.set_output()
 	clip.output(f, y4m=True, progress_update = reportProgress)
 	f.close()
+	print("")
 	
 def deblock(clip, batchSize = 30):
-	return BasicVSRPP(clip=clip, model=5, interval=batchSize, fp16=True)
+	return BasicVSRPP(clip=clip, model=5, interval=batchSize, fp16=True, cpu_cache=False)
 	
 def upscale(clip):
-	return BasicVSRPP(clip=clip, model=1, interval=30, fp16=True)
+	return BasicVSRPP(clip=clip, model=1, interval=30, fp16=False, cpu_cache=True)
 	
-def processVideo(inputFile, outputFile):
+def scaleVideo(inputFile, outputFile):
 	ret = openVideo(inputFile)
-	ret = deblock(ret, 90)
-	ret = core.resize.Bicubic(ret, ret.width*2, ret.height*2)
-	ret = deblock(ret);
-	ret = core.resize.Bicubic(ret, ret.width/2, ret.height/2)
-	ret = deblock(ret, 90)
+	origWidth = ret.width;
+	origHeight = ret.height;
+	#if size is to small, we upscale but don't downscale before upscale and just do a final downscale at the end
+	toLow = (ret.width < 256) or (ret.height < 256)
+	print(origWidth)
+	print(origHeight)
+	ret = core.resize.Bicubic(ret, origWidth*2, origHeight*2)
+	ret = deblock(ret, 60)
+	ret = core.resize.Bicubic(ret, origWidth, origHeight)
+	if not toLow:
+		ret = deblock(ret, 60)
 	ret = upscale(ret)
-	ret = toYUV(ret)
 	if ret.fps.denominator > 1:
-		targetFPS = ret.fps.numerator / ret.fps.denominator * 2;
+		targetFPS = ret.fps.numerator / ret.fps.denominator;
 		print("VFR clip detected. Converting to " + str(targetFPS))
-		ret = core.vfrtocfr.VFRToCFR(ret, CTimings, 30, 1)
+		ret = core.vfrtocfr.VFRToCFR(ret, CTimings, targetFPS, 1)
+	#ret = RIFE(ret, fp16=True)
+	ret = toYUV(ret)
 	saveVideo(ret, outputFile)
+
+def processVideo(inputFile, outputFile):
+	print("processing " + inputFile)
+	timer = time.time()
+	scaleVideo(inputFile, temp)
+	extractAudio(inputFile, CAudio)
+	mergeAudio(temp, CAudio, outputFile)
+	endTimer = time.time()
+	neededTime = timedelta(seconds=endTimer-timer)
+	print("time needed: " + str(neededTime))
+	print("finished " + outputFile)
+
 
 original = "E:\\CustomMyst\\Sources\\t_data-1-mhk\\55_tmgtm2jg.mov"
 intro = "E:\\CustomMyst\\Sources\\t_data-1-mhk\\159_tintro.mov"
-temp = "G:\\ScaledVideos\\temp2.y4m"
+temp = "G:\\ScaledVideos\\temp5.y4m"
 
 warnings.filterwarnings("ignore", category=UserWarning)
-processVideo(intro, temp)
-extractAudio(intro, CAudio)
-mergeAudio(temp, CAudio, "G:\\Intro2.mov")
+#processVideo(original, temp)
+#extractAudio(original, CAudio)
+#mergeAudio(temp, CAudio, "G:\\Maglev.mov")
