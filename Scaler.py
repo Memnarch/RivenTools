@@ -7,6 +7,7 @@ import math
 import os
 from vsrife import RIFE
 from vsdpir import DPIR
+import mvsfunc as mvf
 import vapoursynth as vs
 from vapoursynth import core
 from vsbasicvsrpp import BasicVSRPP
@@ -20,7 +21,7 @@ def GetLogFile():
 
 def extractAudio(videoFile, audioFile):
 	print("extracting audio...")
-	if os.path.exists(audioFile)
+	if os.path.exists(audioFile):
 		os.remove(audioFile)
 	subprocess.run([CFFMPEG, "-y", "-i", videoFile, "-vn", "-acodec", "copy", audioFile], stderr = GetLogFile());
 	
@@ -63,12 +64,28 @@ def deblock(clip, batchSize = 30):
 def upscale(clip):
 	return BasicVSRPP(clip=clip, model=1, interval=30, fp16=False, cpu_cache=True)
 	
+def denoise(clip):
+	#float[] lSigma = [3,3,3]
+	lRadius = 2;
+	src = core.bm3d.RGB2OPP(clip)
+	ref = core.bm3d.VBasic(src, profile="lc", matrix=100).bm3d.VAggregate(radius=lRadius)
+	flt = core.bm3d.VFinal(src, ref, profile="lc", matrix=100).bm3d.VAggregate(radius=lRadius)
+	flt = core.bm3d.OPP2RGB(flt)
+	return core.fmtc.bitdepth (clip=flt, flt=1)
+
+
+	
 def scaleVideo(inputFile, outputFile):
 	ret = openVideo(inputFile)
 	origWidth = ret.width;
 	origHeight = ret.height;
 	baseScale = 1;
-	#if size is to small, we upscale but don't downscale before upscale and just do a final downscale at the end
+	ret = core.resize.Bicubic(ret, origWidth*2, origHeight*2)
+	ret = DPIR(ret, task="deblock")
+	ret = deblock(ret)
+	ret = core.resize.Bicubic(ret, origWidth, origHeight)
+	#if size is to small, we upscale but don't downscale before upscale and just do a final downscale at the 
+	"""
 	toLow = (ret.width < 256) or (ret.height < 256)
 	if toLow:
 		min = ret.width if ret.width < ret.height else ret.height 
@@ -90,7 +107,11 @@ def scaleVideo(inputFile, outputFile):
 		print("VFR clip detected. Converting to " + str(targetFPS))
 		ret = core.vfrtocfr.VFRToCFR(ret, CTimings, targetFPS, 1)
 	#ret = RIFE(ret, fp16=True)
+	"""
+	
+	ret = upscale(ret)
 	ret = toYUV(ret)
+	ret = core.asharp.ASharp(ret)
 	saveVideo(ret, outputFile)
 
 def processVideo(inputFile, outputFile):
