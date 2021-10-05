@@ -3,6 +3,8 @@ import sys
 import warnings
 from datetime import timedelta
 import time
+import math
+import os
 from vsrife import RIFE
 from vsdpir import DPIR
 import vapoursynth as vs
@@ -18,6 +20,8 @@ def GetLogFile():
 
 def extractAudio(videoFile, audioFile):
 	print("extracting audio...")
+	if os.path.exists(audioFile)
+		os.remove(audioFile)
 	subprocess.run([CFFMPEG, "-y", "-i", videoFile, "-vn", "-acodec", "copy", audioFile], stderr = GetLogFile());
 	
 def mergeAudio(videoIn, audioIn, videoOut):
@@ -63,16 +67,24 @@ def scaleVideo(inputFile, outputFile):
 	ret = openVideo(inputFile)
 	origWidth = ret.width;
 	origHeight = ret.height;
+	baseScale = 1;
 	#if size is to small, we upscale but don't downscale before upscale and just do a final downscale at the end
 	toLow = (ret.width < 256) or (ret.height < 256)
+	if toLow:
+		min = ret.width if ret.width < ret.height else ret.height 
+		baseScale = math.ceil(256/min)
 	print(origWidth)
 	print(origHeight)
-	ret = core.resize.Bicubic(ret, origWidth*2, origHeight*2)
+	ret = core.resize.Bicubic(ret, origWidth*baseScale*2, origHeight*baseScale*2)
 	ret = deblock(ret, 60)
-	ret = core.resize.Bicubic(ret, origWidth, origHeight)
-	if not toLow:
-		ret = deblock(ret, 60)
+	ret = core.resize.Bicubic(ret, origWidth*baseScale, origHeight*baseScale)
+	ret = deblock(ret, 60)
+	if (origWidth >= 64) and (origHeight >= 64) and (baseScale > 1):
+		ret = core.resize.Bicubic(ret, ret.width / baseScale, ret.height / baseScale)
+		baseScale = 1
 	ret = upscale(ret)
+	if baseScale > 1:
+		ret = core.resize.Bicubic(ret, ret.width / baseScale, ret.height / baseScale)
 	if ret.fps.denominator > 1:
 		targetFPS = ret.fps.numerator / ret.fps.denominator;
 		print("VFR clip detected. Converting to " + str(targetFPS))
