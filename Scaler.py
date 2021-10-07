@@ -58,13 +58,14 @@ def saveVideo(clip, fileName):
 	print("")
 	
 def deblock(clip, batchSize = 30):
-	return BasicVSRPP(clip=clip, model=5, interval=batchSize, fp16=True, cpu_cache=False)
+	return BasicVSRPP(clip=clip, model=3, interval=batchSize, fp16=True, cpu_cache=False)
 	
 def upscale(clip):
-	return BasicVSRPP(clip=clip, model=1, interval=30, fp16=False, cpu_cache=True)
+	return BasicVSRPP(clip=clip, model=2, interval=30, fp16=False, cpu_cache=True)
 	
 def scaleVideo(inputFile, outputFile):
 	ret = openVideo(inputFile)
+	#ret = ret[15*5:15*6]
 	origWidth = ret.width;
 	origHeight = ret.height;
 	baseScale = 1;
@@ -76,13 +77,15 @@ def scaleVideo(inputFile, outputFile):
 	print(origWidth)
 	print(origHeight)
 	ret = core.resize.Bicubic(ret, origWidth*baseScale*2, origHeight*baseScale*2)
+	ret = DPIR(ret)
 	ret = deblock(ret, 60)
 	ret = core.resize.Bicubic(ret, origWidth*baseScale, origHeight*baseScale)
-	ret = deblock(ret, 60)
+	#ret = deblock(ret, 60)
 	if (origWidth >= 64) and (origHeight >= 64) and (baseScale > 1):
 		ret = core.resize.Bicubic(ret, ret.width / baseScale, ret.height / baseScale)
 		baseScale = 1
 	ret = upscale(ret)
+	#ret = core.resize
 	if baseScale > 1:
 		ret = core.resize.Bicubic(ret, ret.width / baseScale, ret.height / baseScale)
 	if ret.fps.denominator > 1:
