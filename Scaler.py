@@ -65,7 +65,7 @@ def upscale(clip):
 	
 def scaleVideo(inputFile, outputFile):
 	ret = openVideo(inputFile)
-	#ret = ret[15*5:15*6]
+	ret = ret[15*32:15*33]
 	origWidth = ret.width;
 	origHeight = ret.height;
 	baseScale = 1;
@@ -76,16 +76,22 @@ def scaleVideo(inputFile, outputFile):
 		baseScale = math.ceil(256/min)
 	print(origWidth)
 	print(origHeight)
-	ret = core.resize.Bicubic(ret, origWidth*baseScale*2, origHeight*baseScale*2)
+	#ret = DPIR(ret, strength=5)
+	ret = core.resize.Point(ret, origWidth*baseScale*4, origHeight*baseScale*4)
 	ret = DPIR(ret)
 	ret = deblock(ret, 60)
-	ret = core.resize.Bicubic(ret, origWidth*baseScale, origHeight*baseScale)
+	
 	#ret = deblock(ret, 60)
+	ret = core.resize.Bicubic(ret, origWidth*baseScale*2, origHeight*baseScale*2)
+	ret = deblock(ret, 60)
+	#ret = upscale(ret)
+	"""
 	if (origWidth >= 64) and (origHeight >= 64) and (baseScale > 1):
 		ret = core.resize.Bicubic(ret, ret.width / baseScale, ret.height / baseScale)
 		baseScale = 1
 	ret = upscale(ret)
-	#ret = core.resize
+	ret = core.resize.Bicubic(ret, ret.width / 4, ret.height / 4)
+	ret = upscale(ret)
 	if baseScale > 1:
 		ret = core.resize.Bicubic(ret, ret.width / baseScale, ret.height / baseScale)
 	if ret.fps.denominator > 1:
@@ -93,6 +99,7 @@ def scaleVideo(inputFile, outputFile):
 		print("VFR clip detected. Converting to " + str(targetFPS))
 		ret = core.vfrtocfr.VFRToCFR(ret, CTimings, targetFPS, 1)
 	#ret = RIFE(ret, fp16=True)
+	"""
 	ret = toYUV(ret)
 	saveVideo(ret, outputFile)
 
