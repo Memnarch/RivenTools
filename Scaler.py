@@ -26,7 +26,7 @@ def extractAudio(videoFile, audioFile):
 	
 def mergeAudio(videoIn, audioIn, videoOut):
 	print("merging audio and compressing...")
-	subprocess.run([CFFMPEG, "-y", "-i", videoIn, "-i", audioIn, "-c:v", "libx264", "-crf", "17", "-c:a", "copy", videoOut], stderr = GetLogFile())
+	subprocess.run([CFFMPEG, "-y", "-i", videoIn, "-i", audioIn, "-c:v", "libx264", "-crf", "17", "-video_track_timescale", "600", "-c:a", "copy", videoOut], stderr = GetLogFile())
 
 def openVideo(fileName):
 	return core.ffms2.Source(source=fileName, format=2000015, timecodes=CTimings) #pfRGBS
