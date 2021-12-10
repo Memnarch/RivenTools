@@ -72,19 +72,19 @@ def scaleVideo(inputFile, outputFile):
 	toLow = (ret.width < 256) or (ret.height < 256)
 	if toLow:
 		min = ret.width if ret.width < ret.height else ret.height 
-		baseScale = math.ceil(256/min)
+		baseScale = 256/min
 	print(origWidth)
 	print(origHeight)
 	ret = core.resize.Bicubic(ret, origWidth*baseScale*2, origHeight*baseScale*2)
 	ret = deblock(ret, 60)
 	ret = core.resize.Bicubic(ret, origWidth*baseScale, origHeight*baseScale)
 	ret = deblock(ret, 60)
-	if (origWidth >= 64) and (origHeight >= 64) and (baseScale > 1):
-		ret = core.resize.Bicubic(ret, ret.width / baseScale, ret.height / baseScale)
+	if (origWidth >= 64) and (origHeight >= 64):
+		ret = core.resize.Bicubic(ret, origWidth, origHeight)
 		baseScale = 1
 	ret = upscale(ret)
 	if baseScale > 1:
-		ret = core.resize.Bicubic(ret, ret.width / baseScale, ret.height / baseScale)
+		ret = core.resize.Bicubic(ret, origWidth*4, origHeight*4)
 	if ret.fps.denominator > 1:
 		targetFPS = ret.fps.numerator / ret.fps.denominator;
 		print("VFR clip detected. Converting to " + str(targetFPS))
@@ -96,9 +96,10 @@ def scaleVideo(inputFile, outputFile):
 def processVideo(inputFile, outputFile):
 	print("processing " + inputFile)
 	timer = time.time()
-	scaleVideo(inputFile, temp)
+	tempFile = temp + os.path.basename(inputFile)
+	scaleVideo(inputFile, tempFile)
 	extractAudio(inputFile, CAudio)
-	mergeAudio(temp, CAudio, outputFile)
+	mergeAudio(tempFile, CAudio, outputFile)
 	endTimer = time.time()
 	neededTime = timedelta(seconds=endTimer-timer)
 	print("time needed: " + str(neededTime))
@@ -107,7 +108,7 @@ def processVideo(inputFile, outputFile):
 
 original = "E:\\CustomMyst\\Sources\\t_data-1-mhk\\55_tmgtm2jg.mov"
 intro = "E:\\CustomMyst\\Sources\\t_data-1-mhk\\159_tintro.mov"
-temp = "G:\\ScaledVideos\\temp5.y4m"
+temp = "G:\\ScaledVideos\\"
 
 warnings.filterwarnings("ignore", category=UserWarning)
 #processVideo(original, temp)
