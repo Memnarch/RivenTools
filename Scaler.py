@@ -13,20 +13,17 @@ from vsbasicvsrpp import BasicVSRPP
 
 CFFMPEG = "E:\\CustomMyst\\ffmpeg\\bin\\ffmpeg.exe";
 CTimings = "Timings.txt";
-CAudio = "Audio.aiff";
 
-def GetLogFile():
-	return open("ffmpeg.log", "w")
+CMaxGPUPixels = (608*2)*(392*2);
+CMaxGPUPixelsForUpscale = 400*400;
 
-def extractAudio(videoFile, audioFile):
-	print("extracting audio...")
-	if os.path.exists(audioFile):
-		os.remove(audioFile)
-	subprocess.run([CFFMPEG, "-y", "-i", videoFile, "-vn", "-acodec", "copy", audioFile], stderr = GetLogFile());
+def GetLogFile(suffix):
+	return open(suffix + "-ffmpeg.log", "w")
 	
-def mergeAudio(videoIn, audioIn, videoOut):
+def mergeAudio(videoIn, origVideo, videoOut):
 	print("merging audio and compressing...")
-	subprocess.run([CFFMPEG, "-y", "-i", videoIn, "-i", audioIn, "-c:v", "libx264", "-crf", "17", "-video_track_timescale", "600", "-c:a", "copy", videoOut], stderr = GetLogFile())
+	args = [CFFMPEG, "-y", "-i", videoIn, "-i", origVideo, "-map", "0:v", "-map", "1:a?", "-map", "-1:v", "-c:v", "libx264", "-crf", "17", "-video_track_timescale", "600", "-c:a", "copy", videoOut]
+	subprocess.run(args, stderr = GetLogFile("merge"), check=True)
 
 def openVideo(fileName):
 	return core.ffms2.Source(source=fileName, format=2000015, timecodes=CTimings) #pfRGBS
@@ -58,10 +55,14 @@ def saveVideo(clip, fileName):
 	print("")
 	
 def deblock(clip, batchSize = 30):
-	return BasicVSRPP(clip=clip, model=5, interval=batchSize, fp16=True, cpu_cache=False)
+	cpumode = (clip.width*clip.height) > CMaxGPUPixels;
+	print("Deblock with CPUCache: " + str(cpumode))
+	return BasicVSRPP(clip=clip, model=5, interval=batchSize, fp16=True, cpu_cache=cpumode)
 	
 def upscale(clip):
-	return BasicVSRPP(clip=clip, model=1, interval=30, fp16=False, cpu_cache=True)
+	cpumode = (clip.width*clip.height) > CMaxGPUPixelsForUpscale;
+	print("Upscale with CPUCache: " + str(cpumode))
+	return BasicVSRPP(clip=clip, model=1, interval=30, fp16=False, cpu_cache=cpumode)
 	
 def scaleVideo(inputFile, outputFile):
 	ret = openVideo(inputFile)
@@ -72,7 +73,7 @@ def scaleVideo(inputFile, outputFile):
 	toLow = (ret.width < 256) or (ret.height < 256)
 	if toLow:
 		min = ret.width if ret.width < ret.height else ret.height 
-		baseScale = 256/min
+		baseScale = math.ceil(256/min)
 	print(origWidth)
 	print(origHeight)
 	ret = core.resize.Bicubic(ret, origWidth*baseScale*2, origHeight*baseScale*2)
@@ -98,8 +99,7 @@ def processVideo(inputFile, outputFile):
 	timer = time.time()
 	tempFile = temp + os.path.basename(inputFile)
 	scaleVideo(inputFile, tempFile)
-	extractAudio(inputFile, CAudio)
-	mergeAudio(tempFile, CAudio, outputFile)
+	mergeAudio(tempFile, inputFile, outputFile)
 	endTimer = time.time()
 	neededTime = timedelta(seconds=endTimer-timer)
 	print("time needed: " + str(neededTime))
@@ -111,6 +111,3 @@ intro = "E:\\CustomMyst\\Sources\\t_data-1-mhk\\159_tintro.mov"
 temp = "G:\\ScaledVideos\\"
 
 warnings.filterwarnings("ignore", category=UserWarning)
-#processVideo(original, temp)
-#extractAudio(original, CAudio)
-#mergeAudio(temp, CAudio, "G:\\Maglev.mov")
