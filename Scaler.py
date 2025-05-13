@@ -5,17 +5,30 @@ from datetime import timedelta
 import time
 import math
 import os
-from vsrife import RIFE
-from vsdpir import DPIR
+from vsrife import rife
+from vsdpir import dpir
 import vapoursynth as vs
 from vapoursynth import core
-from vsbasicvsrpp import BasicVSRPP
+from vsbasicvsrpp import basicvsrpp
 
 CFFMPEG = "E:\\CustomMyst\\ffmpeg\\bin\\ffmpeg.exe";
 CTimings = "Timings.txt";
 
 CMaxGPUPixels = (608*2)*(392*2);
-CMaxGPUPixelsForUpscale = 400*400;
+CMaxGPUPixelsForUpscale = (608*2)*(392*2);
+
+
+#models
+model_vsr_red = 0;
+model_vsr_vimeoBI = 1;
+model_vsr_vimeoBD = 2;
+model_vsr_ntire = 3;
+model_qec_ntire_t1 = 4;
+model_qec_ntire_t2 = 5;
+model_qec_ntire_t3 = 6;
+model_deblur_dvd = 7;
+model_deblur_gopro = 8;
+model_denoise = 9;
 
 def GetLogFile(suffix):
 	return open(suffix + "-ffmpeg.log", "w")
@@ -57,12 +70,12 @@ def saveVideo(clip, fileName):
 def deblock(clip, batchSize = 30):
 	cpumode = (clip.width*clip.height) > CMaxGPUPixels;
 	print("Deblock with CPUCache: " + str(cpumode))
-	return BasicVSRPP(clip=clip, model=5, interval=batchSize, fp16=True, cpu_cache=cpumode)
+	return basicvsrpp(clip=clip, model=model_qec_ntire_t3, length=batchSize, cpu_cache=cpumode)
 	
 def upscale(clip):
 	cpumode = (clip.width*clip.height) > CMaxGPUPixelsForUpscale;
 	print("Upscale with CPUCache: " + str(cpumode))
-	return BasicVSRPP(clip=clip, model=1, interval=30, fp16=False, cpu_cache=cpumode)
+	return basicvsrpp(clip=clip, model=model_vsr_vimeoBI, length=30, cpu_cache=cpumode)
 	
 def scaleVideo(inputFile, outputFile):
 	ret = openVideo(inputFile)
